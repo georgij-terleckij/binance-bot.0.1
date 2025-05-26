@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.env
+.env.*
+*.db
+venv/
+.envrc
+
+# VSCode
+.vscode/
+
+# Docker
+*.pid
+*.tar
+*.gz
+*.bak
+docker-compose.override.yml
+
+# FastAPI / Uvicorn / Logs
+logs/
+*.log
+*.pid
+
+# Frontend
+node_modules/
+dist/
+build/
+*.map
+
+# React/Vite
+frontend/.vite/
+frontend/dist/
+frontend/.cache/
+frontend/npm-debug.log
+frontend/yarn-error.log
+
+# PyCharm / JetBrains
+.idea/
+*.iml*
