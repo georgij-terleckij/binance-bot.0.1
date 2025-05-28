@@ -16,3 +16,13 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+
+  candles-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    restart: unless-stopped

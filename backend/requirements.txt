@@ -6,3 +6,4 @@ aiogram
 httpx
 python-binance
 redis
+websockets==12.0
