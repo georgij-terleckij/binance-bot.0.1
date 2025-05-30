@@ -1,0 +1,600 @@
+# docker-compose.full.yml - Полная конфигурация для Trading Bot системы
+version: '3.9'
+
+services:
+  # Redis для кэширования и pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: trading_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - bot_network
+
+  # PostgreSQL для долгосрочного хранения данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: trading_postgres
+    environment:
+      POSTGRES_DB: trading_bot
+      POSTGRES_USER: bot_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password_change_me}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bot_user -d trading_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bot_network
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trading_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    environment:
+      - DATABASE_URL=postgresql://bot_user:${POSTGRES_PASSWORD:-secure_password_change_me}@postgres:5432/trading_bot
+      - REDIS_URL=redis://redis:6379
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_here}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - bot_network
+
+  # WebSocket Server
+  websocket-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.websocket
+    container_name: trading_websocket
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - bot_network
+
+  # Trading Bot Worker (Candles)
+  candles-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: trading_candles_worker
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    environment:
+      - DATABASE_URL=postgresql://bot_user:${POSTGRES_PASSWORD:-secure_password_change_me}@postgres:5432/trading_bot
+      - REDIS_URL=redis://redis:6379
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bot_network
+
+  # Grid Trading Worker
+  grid-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.grid
+    container_name: trading_grid_worker
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    environment:
+      - DATABASE_URL=postgresql://bot_user:${POSTGRES_PASSWORD:-secure_password_change_me}@postgres:5432/trading_bot
+      - REDIS_URL=redis://redis:6379
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bot_network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=http://localhost:8000
+        - REACT_APP_WS_URL=ws://localhost:8001
+    container_name: trading_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+      - websocket-server
+    restart: unless-stopped
+    networks:
+      - bot_network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: trading_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/sites-available:/etc/nginx/sites-available
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - api
+      - websocket-server
+    restart: unless-stopped
+    networks:
+      - bot_network
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: trading_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - bot_network
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: trading_grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - bot_network
+
+  # Log Management - ELK Stack (опционально)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: trading_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
+    networks:
+      - bot_network
+    profiles:
+      - elk
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.8.0
+    container_name: trading_logstash
+    volumes:
+      - ./elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - ./logs:/usr/share/logstash/logs
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - bot_network
+    profiles:
+      - elk
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: trading_kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - bot_network
+    profiles:
+      - elk
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  elasticsearch_data:
+    driver: local
+
+networks:
+  bot_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+---
+
+# .env.example - Скопируйте в .env и заполните
+# Database
+POSTGRES_PASSWORD=secure_password_change_me
+
+# Binance API
+BINANCE_API_KEY=your_binance_api_key_here
+BINANCE_API_SECRET=your_binance_api_secret_here
+
+# Security
+JWT_SECRET=your_jwt_secret_key_here_make_it_long_and_random
+
+# Monitoring
+GRAFANA_PASSWORD=admin123
+
+# Application
+LOG_LEVEL=INFO
+ENVIRONMENT=production
+
+---
+
+# nginx/nginx.conf
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream api_backend {
+        server api:8000;
+    }
+    
+    upstream websocket_backend {
+        server websocket-server:8001;
+    }
+    
+    upstream frontend_backend {
+        server frontend:80;
+    }
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    limit_req_zone $binary_remote_addr zone=ws:10m rate=5r/s;
+
+    server {
+        listen 80;
+        server_name localhost;
+        
+        # Frontend
+        location / {
+            proxy_pass http://frontend_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+        
+        # API
+        location /api/ {
+            limit_req zone=api burst=20 nodelay;
+            proxy_pass http://api_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # CORS
+            add_header Access-Control-Allow-Origin *;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
+            add_header Access-Control-Allow-Headers "Content-Type, Authorization";
+        }
+        
+        # WebSocket
+        location /ws {
+            limit_req zone=ws burst=10 nodelay;
+            proxy_pass http://websocket_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 86400;
+        }
+        
+        # Health checks
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+    }
+}
+
+---
+
+# monitoring/prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  - job_name: 'trading-api'
+    static_configs:
+      - targets: ['api:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'trading-websocket'
+    static_configs:
+      - targets: ['websocket-server:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+---
+
+# frontend/Dockerfile
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+ARG REACT_APP_API_URL
+ARG REACT_APP_WS_URL
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV REACT_APP_WS_URL=$REACT_APP_WS_URL
+
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/nginx.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+
+---
+
+# backend/Dockerfile.grid
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD python -c "import redis; r=redis.from_url('redis://redis:6379'); r.ping()" || exit 1
+
+CMD ["python", "-m", "workers.grid_worker"]
+
+---
+
+# Makefile для удобного управления
+.PHONY: build up down logs clean restart
+
+# Development команды
+dev-up:
+	docker-compose -f docker-compose.yml up -d
+
+dev-down:
+	docker-compose -f docker-compose.yml down
+
+dev-logs:
+	docker-compose -f docker-compose.yml logs -f
+
+# Production команды
+prod-up:
+	docker-compose -f docker-compose.full.yml up -d
+
+prod-down:
+	docker-compose -f docker-compose.full.yml down
+
+prod-logs:
+	docker-compose -f docker-compose.full.yml logs -f
+
+# Мониторинг
+monitoring-up:
+	docker-compose -f docker-compose.full.yml --profile monitoring up -d prometheus grafana
+
+elk-up:
+	docker-compose -f docker-compose.full.yml --profile elk up -d
+
+# Утилиты
+clean:
+	docker-compose -f docker-compose.full.yml down -v
+	docker system prune -f
+
+restart:
+	docker-compose -f docker-compose.full.yml restart
+
+backup-db:
+	docker exec trading_postgres pg_dump -U bot_user trading_bot > backup_$(date +%Y%m%d_%H%M%S).sql
+
+restore-db:
+	docker exec -i trading_postgres psql -U bot_user trading_bot < $(file)
+
+# Проверка состояния
+status:
+	docker-compose -f docker-compose.full.yml ps
+	docker-compose -f docker-compose.full.yml top
+
+# Мониторинг логов
+logs-api:
+	docker-compose -f docker-compose.full.yml logs -f api
+
+logs-ws:
+	docker-compose -f docker-compose.full.yml logs -f websocket-server
+
+logs-workers:
+	docker-compose -f docker-compose.full.yml logs -f candles-worker grid-worker
+
+---
+
+# scripts/deploy.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Deploying Trading Bot System..."
+
+# Проверка переменных окружения
+if [[ ! -f .env ]]; then
+    echo "❌ .env file not found. Copy .env.example to .env and configure it."
+    exit 1
+fi
+
+# Загрузка переменных
+source .env
+
+# Проверка обязательных переменных
+required_vars=("BINANCE_API_KEY" "BINANCE_API_SECRET" "JWT_SECRET" "POSTGRES_PASSWORD")
+for var in "${required_vars[@]}"; do
+    if [[ -z "${!var}" ]]; then
+        echo "❌ Required environment variable $var is not set"
+        exit 1
+    fi
+done
+
+echo "✅ Environment variables validated"
+
+# Создание необходимых директорий
+mkdir -p logs ssl monitoring/grafana/{dashboards,datasources} nginx/sites-available elk
+
+echo "✅ Directories created"
+
+# Сборка и запуск сервисов
+echo "🔨 Building and starting services..."
+docker-compose -f docker-compose.full.yml build
+docker-compose -f docker-compose.full.yml up -d
+
+echo "⏳ Waiting for services to start..."
+sleep 30
+
+# Проверка здоровья сервисов
+services=("redis" "postgres" "api" "websocket-server")
+for service in "${services[@]}"; do
+    if docker-compose -f docker-compose.full.yml ps | grep -q "$service.*Up"; then
+        echo "✅ $service is running"
+    else
+        echo "❌ $service failed to start"
+        docker-compose -f docker-compose.full.yml logs "$service"
+        exit 1
+    fi
+done
+
+echo "🎉 Trading Bot System deployed successfully!"
+echo ""
+echo "📊 Access URLs:"
+echo "   Frontend: http://localhost:3000"
+echo "   API: http://localhost:8000"
+echo "   WebSocket: ws://localhost:8001"
+echo "   Grafana: http://localhost:3001 (admin/admin123)"
+echo "   Prometheus: http://localhost:9090"
+echo ""
+echo "📝 Useful commands:"
+echo "   View logs: make prod-logs"
+echo "   Stop system: make prod-down"
+echo "   Restart: make restart"
+echo "   Check status: make status"

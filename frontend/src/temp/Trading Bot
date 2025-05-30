@@ -1,0 +1,463 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Settings,
+  BarChart3,
+  Wallet,
+  Bot,
+  Play,
+  Pause,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle,
+  XCircle
+} from 'lucide-react';
+
+// Mock data - в реальном приложении получаем из FastAPI
+const mockBotStatus = {
+  isRunning: true,
+  totalProfit: 1234.56,
+  totalTrades: 142,
+  winRate: 68.3,
+  lastUpdate: new Date().toISOString()
+};
+
+const mockSymbols = [
+  {
+    symbol: 'BTCUSDT',
+    price: '43,245.67',
+    change: '+2.34%',
+    volume: '1,234.56',
+    status: 'active',
+    profit: '+$234.56',
+    trades: 12
+  },
+  {
+    symbol: 'ETHUSDT',
+    price: '2,567.89',
+    change: '-1.23%',
+    volume: '987.65',
+    status: 'active',
+    profit: '+$123.45',
+    trades: 8
+  },
+  {
+    symbol: 'ADAUSDT',
+    price: '0.4523',
+    change: '+0.87%',
+    volume: '456.78',
+    status: 'inactive',
+    profit: '-$45.23',
+    trades: 3
+  }
+];
+
+const mockOrders = [
+  {
+    id: '1',
+    symbol: 'BTCUSDT',
+    side: 'BUY',
+    type: 'LIMIT',
+    amount: '0.023',
+    price: '43,200.00',
+    status: 'FILLED',
+    time: '2025-05-29 12:34:56'
+  },
+  {
+    id: '2',
+    symbol: 'ETHUSDT',
+    side: 'SELL',
+    type: 'MARKET',
+    amount: '1.45',
+    price: '2,570.00',
+    status: 'PENDING',
+    time: '2025-05-29 12:30:12'
+  }
+];
+
+const TradingBotUI = () => {
+  const [botStatus, setBotStatus] = useState(mockBotStatus);
+  const [symbols, setSymbols] = useState(mockSymbols);
+  const [orders, setOrders] = useState(mockOrders);
+  const [selectedTab, setSelectedTab] = useState('overview');
+  const [isConnected, setIsConnected] = useState(true);
+
+  // Симуляция обновления данных
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // В реальном приложении здесь будет API вызов к FastAPI
+      const now = new Date();
+      setBotStatus(prev => ({
+        ...prev,
+        lastUpdate: now.toISOString(),
+        totalProfit: prev.totalProfit + (Math.random() - 0.5) * 10
+      }));
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleBotToggle = async () => {
+    try {
+      // В реальном приложении:
+      // const response = await fetch('/api/bot/toggle', { method: 'POST' });
+      setBotStatus(prev => ({ ...prev, isRunning: !prev.isRunning }));
+      console.log('Bot status toggled');
+    } catch (error) {
+      console.error('Failed to toggle bot:', error);
+    }
+  };
+
+  const handleSymbolToggle = async (symbol: string) => {
+    try {
+      // В реальном приложении:
+      // const response = await fetch(`/api/symbols/${symbol}/toggle`, { method: 'POST' });
+      setSymbols(prev => prev.map(s =>
+        s.symbol === symbol
+          ? { ...s, status: s.status === 'active' ? 'inactive' : 'active' }
+          : s
+      ));
+      console.log(`Symbol ${symbol} toggled`);
+    } catch (error) {
+      console.error(`Failed to toggle ${symbol}:`, error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Header */}
+      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Bot className="w-8 h-8 text-yellow-500" />
+              <h1 className="text-2xl font-bold">Trading Bot</h1>
+            </div>
+            <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm ${
+              isConnected ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+              <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleBotToggle}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                botStatus.isRunning
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+            >
+              {botStatus.isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              <span>{botStatus.isRunning ? 'Stop Bot' : 'Start Bot'}</span>
+            </button>
+
+            <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg">
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation Tabs */}
+      <nav className="bg-gray-800 border-b border-gray-700 px-6">
+        <div className="flex space-x-8">
+          {[
+            { id: 'overview', label: 'Overview', icon: BarChart3 },
+            { id: 'symbols', label: 'Symbols', icon: TrendingUp },
+            { id: 'orders', label: 'Orders', icon: Activity },
+            { id: 'balance', label: 'Balance', icon: Wallet }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setSelectedTab(tab.id)}
+              className={`flex items-center space-x-2 px-4 py-4 border-b-2 transition-colors ${
+                selectedTab === tab.id
+                  ? 'border-yellow-500 text-yellow-500'
+                  : 'border-transparent text-gray-400 hover:text-white'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="p-6">
+        {selectedTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Total Profit</p>
+                    <p className={`text-2xl font-bold ${botStatus.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      ${botStatus.totalProfit.toFixed(2)}
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-green-400" />
+                </div>
+              </div>
+
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Total Trades</p>
+                    <p className="text-2xl font-bold">{botStatus.totalTrades}</p>
+                  </div>
+                  <Activity className="w-8 h-8 text-blue-400" />
+                </div>
+              </div>
+
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Win Rate</p>
+                    <p className="text-2xl font-bold text-green-400">{botStatus.winRate}%</p>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-green-400" />
+                </div>
+              </div>
+
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm">Bot Status</p>
+                    <p className={`text-2xl font-bold ${botStatus.isRunning ? 'text-green-400' : 'text-red-400'}`}>
+                      {botStatus.isRunning ? 'Running' : 'Stopped'}
+                    </p>
+                  </div>
+                  {botStatus.isRunning ?
+                    <CheckCircle className="w-8 h-8 text-green-400" /> :
+                    <XCircle className="w-8 h-8 text-red-400" />
+                  }
+                </div>
+              </div>
+            </div>
+
+            {/* Active Symbols Summary */}
+            <div className="bg-gray-800 rounded-lg border border-gray-700">
+              <div className="p-6 border-b border-gray-700">
+                <h2 className="text-xl font-semibold">Active Trading Pairs</h2>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {symbols.filter(s => s.status === 'active').map(symbol => (
+                    <div key={symbol.symbol} className="bg-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold">{symbol.symbol}</span>
+                        <span className={`text-sm ${symbol.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                          {symbol.change}
+                        </span>
+                      </div>
+                      <div className="text-2xl font-bold mb-1">${symbol.price}</div>
+                      <div className="flex justify-between text-sm text-gray-400">
+                        <span>Trades: {symbol.trades}</span>
+                        <span className={symbol.profit.startsWith('+') ? 'text-green-400' : 'text-red-400'}>
+                          {symbol.profit}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectedTab === 'symbols' && (
+          <div className="bg-gray-800 rounded-lg border border-gray-700">
+            <div className="p-6 border-b border-gray-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Trading Symbols</h2>
+                <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left py-4 px-6">Symbol</th>
+                    <th className="text-left py-4 px-6">Price</th>
+                    <th className="text-left py-4 px-6">24h Change</th>
+                    <th className="text-left py-4 px-6">Volume</th>
+                    <th className="text-left py-4 px-6">Trades</th>
+                    <th className="text-left py-4 px-6">Profit</th>
+                    <th className="text-left py-4 px-6">Status</th>
+                    <th className="text-left py-4 px-6">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {symbols.map(symbol => (
+                    <tr key={symbol.symbol} className="border-b border-gray-700 hover:bg-gray-700">
+                      <td className="py-4 px-6">
+                        <span className="font-semibold">{symbol.symbol}</span>
+                      </td>
+                      <td className="py-4 px-6 font-mono">${symbol.price}</td>
+                      <td className={`py-4 px-6 ${symbol.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                        {symbol.change}
+                      </td>
+                      <td className="py-4 px-6">{symbol.volume}</td>
+                      <td className="py-4 px-6">{symbol.trades}</td>
+                      <td className={`py-4 px-6 ${symbol.profit.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                        {symbol.profit}
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          symbol.status === 'active'
+                            ? 'bg-green-900 text-green-300'
+                            : 'bg-gray-600 text-gray-300'
+                        }`}>
+                          {symbol.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <button
+                          onClick={() => handleSymbolToggle(symbol.symbol)}
+                          className={`px-3 py-1 rounded text-sm transition-colors ${
+                            symbol.status === 'active'
+                              ? 'bg-red-600 hover:bg-red-700'
+                              : 'bg-green-600 hover:bg-green-700'
+                          }`}
+                        >
+                          {symbol.status === 'active' ? 'Stop' : 'Start'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {selectedTab === 'orders' && (
+          <div className="bg-gray-800 rounded-lg border border-gray-700">
+            <div className="p-6 border-b border-gray-700">
+              <h2 className="text-xl font-semibold">Recent Orders</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left py-4 px-6">Symbol</th>
+                    <th className="text-left py-4 px-6">Side</th>
+                    <th className="text-left py-4 px-6">Type</th>
+                    <th className="text-left py-4 px-6">Amount</th>
+                    <th className="text-left py-4 px-6">Price</th>
+                    <th className="text-left py-4 px-6">Status</th>
+                    <th className="text-left py-4 px-6">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map(order => (
+                    <tr key={order.id} className="border-b border-gray-700 hover:bg-gray-700">
+                      <td className="py-4 px-6 font-semibold">{order.symbol}</td>
+                      <td className={`py-4 px-6 ${order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}`}>
+                        {order.side}
+                      </td>
+                      <td className="py-4 px-6">{order.type}</td>
+                      <td className="py-4 px-6 font-mono">{order.amount}</td>
+                      <td className="py-4 px-6 font-mono">${order.price}</td>
+                      <td className="py-4 px-6">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          order.status === 'FILLED' ? 'bg-green-900 text-green-300' :
+                          order.status === 'PENDING' ? 'bg-yellow-900 text-yellow-300' :
+                          'bg-red-900 text-red-300'
+                        }`}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-gray-400 text-sm">{order.time}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {selectedTab === 'balance' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-gray-800 rounded-lg border border-gray-700">
+              <div className="p-6 border-b border-gray-700">
+                <h2 className="text-xl font-semibold">Account Balance</h2>
+              </div>
+              <div className="p-6 space-y-4">
+                {[
+                  { asset: 'USDT', free: '1,234.56', locked: '234.56' },
+                  { asset: 'BTC', free: '0.12345678', locked: '0.00123456' },
+                  { asset: 'ETH', free: '2.345678', locked: '0.123456' }
+                ].map(balance => (
+                  <div key={balance.asset} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-black font-bold text-sm">
+                        {balance.asset[0]}
+                      </div>
+                      <span className="font-semibold">{balance.asset}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono">{balance.free}</div>
+                      <div className="text-sm text-gray-400">Locked: {balance.locked}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-gray-800 rounded-lg border border-gray-700">
+              <div className="p-6 border-b border-gray-700">
+                <h2 className="text-xl font-semibold">Performance</h2>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Today's PnL</span>
+                  <span className="text-green-400 font-semibold">+$45.67</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Weekly PnL</span>
+                  <span className="text-green-400 font-semibold">+$234.56</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Monthly PnL</span>
+                  <span className="text-green-400 font-semibold">+$1,234.56</span>
+                </div>
+                <div className="border-t border-gray-700 pt-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Total Portfolio</span>
+                    <span className="text-white font-bold text-lg">$12,345.67</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-gray-800 border-t border-gray-700 px-6 py-4 mt-auto">
+        <div className="flex items-center justify-between text-sm text-gray-400">
+          <div>
+            Last updated: {new Date(botStatus.lastUpdate).toLocaleString()}
+          </div>
+          <div className="flex items-center space-x-4">
+            <span>API Status: Active</span>
+            <span>Version 1.0.0</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default TradingBotUI;

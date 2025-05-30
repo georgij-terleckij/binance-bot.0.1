@@ -1,0 +1,367 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Bot,
+  BarChart3,
+  TrendingUp,
+  Wallet,
+  Settings,
+  Bell,
+  Activity,
+  PieChart,
+  Target,
+  Menu,
+  X,
+  Home,
+  LogOut,
+  User
+} from 'lucide-react';
+
+// Импорт всех компонентов (в реальном проекте это будут отдельные файлы)
+import TradingBotUI from './components/TradingBotUI';
+import TradingAnalytics from './components/TradingAnalytics';
+import PortfolioManagement from './components/PortfolioManagement';
+import StrategyBuilder from './components/StrategyBuilder';
+import TradingLogs from './components/TradingLogs';
+import Notifications from './components/Notifications';
+import BotSettings from './components/BotSettings';
+
+const TradingBotApp = () => {
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [botStatus, setBotStatus] = useState({
+    isRunning: true,
+    totalProfit: 1234.56,
+    totalTrades: 142,
+    lastUpdate: new Date().toISOString()
+  });
+
+  const navigation = [
+    { id: 'dashboard', name: 'Dashboard', icon: Home },
+    { id: 'bot', name: 'Trading Bot', icon: Bot },
+    { id: 'analytics', name: 'Analytics', icon: BarChart3 },
+    { id: 'portfolio', name: 'Portfolio', icon: Wallet },
+    { id: 'strategies', name: 'Strategies', icon: Target },
+    { id: 'logs', name: 'Trading Logs', icon: Activity },
+    { id: 'notifications', name: 'Notifications', icon: Bell },
+    { id: 'settings', name: 'Settings', icon: Settings }
+  ];
+
+  // Симуляция обновления статуса бота
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBotStatus(prev => ({
+        ...prev,
+        totalProfit: prev.totalProfit + (Math.random() - 0.5) * 5,
+        lastUpdate: new Date().toISOString()
+      }));
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <Dashboard botStatus={botStatus} />;
+      case 'bot':
+        return <TradingBotUI />;
+      case 'analytics':
+        return <TradingAnalytics />;
+      case 'portfolio':
+        return <PortfolioManagement />;
+      case 'strategies':
+        return <StrategyBuilder />;
+      case 'logs':
+        return <TradingLogs />;
+      case 'notifications':
+        return <Notifications />;
+      case 'settings':
+        return <BotSettings />;
+      default:
+        return <Dashboard botStatus={botStatus} />;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white flex">
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-gray-800 border-r border-gray-700 transition-all duration-300 flex flex-col`}>
+        {/* Logo */}
+        <div className="p-4 border-b border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <Bot className="w-6 h-6 text-white" />
+            </div>
+            {sidebarOpen && (
+              <div>
+                <h1 className="text-xl font-bold">Trading Bot</h1>
+                <p className="text-xs text-gray-400">v2.0.0</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bot Status */}
+        {sidebarOpen && (
+          <div className="p-4 border-b border-gray-700">
+            <div className="bg-gray-700 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-300">Bot Status</span>
+                <div className={`w-2 h-2 rounded-full ${botStatus.isRunning ? 'bg-green-400' : 'bg-red-400'}`} />
+              </div>
+              <div className="text-lg font-bold">{botStatus.isRunning ? 'Active' : 'Stopped'}</div>
+              <div className={`text-sm ${botStatus.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                ${botStatus.totalProfit.toFixed(2)} P&L
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4">
+          <div className="space-y-2">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setCurrentPage(item.id)}
+                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                    currentPage === item.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {sidebarOpen && <span>{item.name}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* User Profile */}
+        <div className="p-4 border-t border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
+              <User className="w-4 h-4" />
+            </div>
+            {sidebarOpen && (
+              <div className="flex-1">
+                <div className="text-sm font-semibold">Trader</div>
+                <div className="text-xs text-gray-400">trader@example.com</div>
+              </div>
+            )}
+            {sidebarOpen && (
+              <button className="p-1 text-gray-400 hover:text-white">
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Bar */}
+        <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <div>
+                <h2 className="text-xl font-semibold capitalize">{currentPage}</h2>
+                <p className="text-sm text-gray-400">
+                  Last updated: {new Date(botStatus.lastUpdate).toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              {/* Quick Stats */}
+              <div className="hidden md:flex items-center space-x-6 text-sm">
+                <div className="text-center">
+                  <div className="text-gray-400">Profit</div>
+                  <div className={`font-semibold ${botStatus.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ${botStatus.totalProfit.toFixed(2)}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-gray-400">Trades</div>
+                  <div className="font-semibold text-blue-400">{botStatus.totalTrades}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-gray-400">Status</div>
+                  <div className={`font-semibold ${botStatus.isRunning ? 'text-green-400' : 'text-red-400'}`}>
+                    {botStatus.isRunning ? 'Running' : 'Stopped'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notifications */}
+              <button
+                onClick={() => setCurrentPage('notifications')}
+                className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
+              >
+                <Bell className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                  3
+                </span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-auto">
+          {renderPage()}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+// Dashboard компонент
+const Dashboard = ({ botStatus }) => {
+  const stats = [
+    {
+      title: 'Total Profit',
+      value: `$${botStatus.totalProfit.toFixed(2)}`,
+      change: '+12.5%',
+      icon: TrendingUp,
+      color: botStatus.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'
+    },
+    {
+      title: 'Total Trades',
+      value: botStatus.totalTrades.toString(),
+      change: '+5',
+      icon: Activity,
+      color: 'text-blue-400'
+    },
+    {
+      title: 'Win Rate',
+      value: '68.5%',
+      change: '+2.1%',
+      icon: Target,
+      color: 'text-green-400'
+    },
+    {
+      title: 'Portfolio Value',
+      value: '$12,345.67',
+      change: '+8.2%',
+      icon: Wallet,
+      color: 'text-purple-400'
+    }
+  ];
+
+  return (
+    <div className="p-6 bg-gray-900 text-white">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Trading Dashboard</h1>
+        <p className="text-gray-400">Monitor your trading bot performance and portfolio</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div key={index} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-gray-400 text-sm">{stat.title}</p>
+                  <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+                </div>
+                <Icon className={`w-8 h-8 ${stat.color}`} />
+              </div>
+              <div className="flex items-center">
+                <span className="text-green-400 text-sm font-medium">{stat.change}</span>
+                <span className="text-gray-400 text-sm ml-2">vs last period</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Bot Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h3 className="text-lg font-semibold mb-4">Bot Status</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">Status</span>
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${botStatus.isRunning ? 'bg-green-400' : 'bg-red-400'}`} />
+                <span className={botStatus.isRunning ? 'text-green-400' : 'text-red-400'}>
+                  {botStatus.isRunning ? 'Running' : 'Stopped'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">Uptime</span>
+              <span className="text-white">2d 14h 32m</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">Active Pairs</span>
+              <span className="text-white">3</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">Last Trade</span>
+              <span className="text-white">2 minutes ago</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+          <div className="space-y-3">
+            <button className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+              View Analytics
+            </button>
+            <button className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
+              Manage Portfolio
+            </button>
+            <button className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors">
+              Create Strategy
+            </button>
+            <button className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded-lg transition-colors">
+              Bot Settings
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+        <div className="space-y-4">
+          {[
+            { action: 'Trade Executed', details: 'BUY 0.025 BTC at $43,250.00', time: '2 minutes ago', status: 'success' },
+            { action: 'Strategy Updated', details: 'Grid Trading parameters modified', time: '15 minutes ago', status: 'info' },
+            { action: 'Balance Alert', details: 'USDT balance below threshold', time: '1 hour ago', status: 'warning' },
+            { action: 'Trade Executed', details: 'SELL 1.5 ETH at $2,567.89', time: '2 hours ago', status: 'success' }
+          ].map((activity, index) => (
+            <div key={index} className="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg">
+              <div className={`w-2 h-2 rounded-full ${
+                activity.status === 'success' ? 'bg-green-400' :
+                activity.status === 'warning' ? 'bg-yellow-400' :
+                'bg-blue-400'
+              }`} />
+              <div className="flex-1">
+                <p className="font-medium">{activity.action}</p>
+                <p className="text-sm text-gray-400">{activity.details}</p>
+              </div>
+              <span className="text-sm text-gray-400">{activity.time}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TradingBotApp;

@@ -7,10 +7,15 @@ router = APIRouter()
 @router.get("/logs")
 def get_logs(symbol: str = Query(...)):
     key = f"logs:{symbol.upper()}"
-    raw = redis_client.lrange(key, -100, -1)  # последние 100 записей
+    raw = redis_client.lrange(key, -100, -1)
 
-    if not raw:
-        return {"symbol": symbol.upper(), "logs": []}
+    logs = [json.loads(item) for item in raw] if raw else []
 
-    logs = [json.loads(item) for item in raw]
-    return {"symbol": symbol.upper(), "logs": logs}
+    return {
+        "success": True,
+        "status": 200,
+        "message": "OK",
+        "data": {
+            "rows": logs
+        }
+    }

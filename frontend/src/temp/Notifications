@@ -1,0 +1,585 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Bell,
+  BellOff,
+  Check,
+  X,
+  AlertTriangle,
+  Info,
+  CheckCircle,
+  XCircle,
+  Settings,
+  Trash2,
+  Eye,
+  EyeOff,
+  Volume2,
+  VolumeX,
+  Filter
+} from 'lucide-react';
+
+interface Notification {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+  category: 'trade' | 'system' | 'price_alert' | 'strategy' | 'security';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  data?: any;
+}
+
+interface NotificationSettings {
+  enableSound: boolean;
+  enableDesktop: boolean;
+  enableEmail: boolean;
+  enableTelegram: boolean;
+  categories: {
+    trade: boolean;
+    system: boolean;
+    price_alert: boolean;
+    strategy: boolean;
+    security: boolean;
+  };
+  priorities: {
+    low: boolean;
+    medium: boolean;
+    high: boolean;
+    critical: boolean;
+  };
+}
+
+// Mock notifications data
+const mockNotifications: Notification[] = [
+  {
+    id: '1',
+    type: 'success',
+    title: 'Trade Executed',
+    message: 'BUY order for 0.025 BTC at $43,250.00 has been filled successfully',
+    timestamp: '2025-05-29T14:30:00Z',
+    read: false,
+    category: 'trade',
+    priority: 'medium',
+    data: { symbol: 'BTCUSDT', side: 'BUY', amount: '0.025', price: '43250.00' }
+  },
+  {
+    id: '2',
+    type: 'warning',
+    title: 'Low Balance Alert',
+    message: 'USDT balance is below $200. Current balance: $150.25',
+    timestamp: '2025-05-29T14:25:00Z',
+    read: false,
+    category: 'system',
+    priority: 'high',
+    data: { balance: 150.25, threshold: 200 }
+  },
+  {
+    id: '3',
+    type: 'error',
+    title: 'Order Failed',
+    message: 'Failed to place SELL order for ETHUSDT: Insufficient balance',
+    timestamp: '2025-05-29T14:20:00Z',
+    read: true,
+    category: 'trade',
+    priority: 'high',
+    data: { symbol: 'ETHUSDT', side: 'SELL', error: 'Insufficient balance' }
+  },
+  {
+    id: '4',
+    type: 'info',
+    title: 'Price Alert',
+    message: 'BTC has reached your target price of $43,000',
+    timestamp: '2025-05-29T14:15:00Z',
+    read: true,
+    category: 'price_alert',
+    priority: 'medium',
+    data: { symbol: 'BTCUSDT', targetPrice: 43000, currentPrice: 43245.67 }
+  },
+  {
+    id: '5',
+    type: 'error',
+    title: 'Security Alert',
+    message: 'Failed login attempt from unknown IP address: 192.168.1.100',
+    timestamp: '2025-05-29T14:10:00Z',
+    read: false,
+    category: 'security',
+    priority: 'critical',
+    data: { ip: '192.168.1.100', location: 'Unknown' }
+  }
+];
+
+const defaultSettings: NotificationSettings = {
+  enableSound: true,
+  enableDesktop: true,
+  enableEmail: false,
+  enableTelegram: false,
+  categories: {
+    trade: true,
+    system: true,
+    price_alert: true,
+    strategy: true,
+    security: true
+  },
+  priorities: {
+    low: false,
+    medium: true,
+    high: true,
+    critical: true
+  }
+};
+
+const NotificationsComponent = () => {
+  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [settings, setSettings] = useState<NotificationSettings>(defaultSettings);
+  const [showSettings, setShowSettings] = useState(false);
+  const [filter, setFilter] = useState<{
+    category: string;
+    priority: string;
+    read: string;
+    type: string;
+  }>({
+    category: 'all',
+    priority: 'all',
+    read: 'all',
+    type: 'all'
+  });
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Permission for desktop notifications
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    // Request notification permission
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          setNotificationPermission(permission);
+        });
+      }
+    }
+  }, []);
+
+  // Filtered notifications
+  const filteredNotifications = notifications.filter(notification => {
+    const matchesCategory = filter.category === 'all' || notification.category === filter.category;
+    const matchesPriority = filter.priority === 'all' || notification.priority === filter.priority;
+    const matchesRead = filter.read === 'all' ||
+      (filter.read === 'read' && notification.read) ||
+      (filter.read === 'unread' && !notification.read);
+    const matchesType = filter.type === 'all' || notification.type === filter.type;
+    const matchesSearch = searchTerm === '' ||
+      notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      notification.message.toLowerCase().includes(searchTerm.toLowerCase());
+
+    return matchesCategory && matchesPriority && matchesRead && matchesType && matchesSearch;
+  });
+
+  // Statistics
+  const stats = {
+    total: notifications.length,
+    unread: notifications.filter(n => !n.read).length,
+    critical: notifications.filter(n => n.priority === 'critical' && !n.read).length,
+    byType: {
+      success: notifications.filter(n => n.type === 'success').length,
+      error: notifications.filter(n => n.type === 'error').length,
+      warning: notifications.filter(n => n.type === 'warning').length,
+      info: notifications.filter(n => n.type === 'info').length
+    }
+  };
+
+  const markAsRead = (id: string) => {
+    setNotifications(prev => prev.map(n =>
+      n.id === id ? { ...n, read: true } : n
+    ));
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const deleteNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const clearAll = () => {
+    if (window.confirm('Are you sure you want to clear all notifications?')) {
+      setNotifications([]);
+    }
+  };
+
+  const showDesktopNotification = useCallback((notification: Notification) => {
+    if (settings.enableDesktop && notificationPermission === 'granted') {
+      new Notification(notification.title, {
+        body: notification.message,
+        icon: '/favicon.ico',
+        tag: notification.id
+      });
+    }
+  }, [settings.enableDesktop, notificationPermission]);
+
+  const playNotificationSound = useCallback(() => {
+    if (settings.enableSound) {
+      // В реальном приложении здесь будет воспроизведение звука
+      console.log('🔊 Notification sound played');
+    }
+  }, [settings.enableSound]);
+
+  // Симуляция получения новых уведомлений
+  const addNewNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
+    const newNotification: Notification = {
+      ...notification,
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString()
+    };
+
+    setNotifications(prev => [newNotification, ...prev]);
+
+    // Показать desktop уведомление
+    showDesktopNotification(newNotification);
+
+    // Воспроизвести звук
+    playNotificationSound();
+  };
+
+  const testNotification = () => {
+    addNewNotification({
+      type: 'info',
+      title: 'Test Notification',
+      message: 'This is a test notification to check if everything works correctly',
+      read: false,
+      category: 'system',
+      priority: 'low'
+    });
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return <CheckCircle className="w-5 h-5 text-green-400" />;
+      case 'error':
+        return <XCircle className="w-5 h-5 text-red-400" />;
+      case 'warning':
+        return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
+      case 'info':
+      default:
+        return <Info className="w-5 h-5 text-blue-400" />;
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'success':
+        return 'border-green-400 bg-green-900 bg-opacity-20';
+      case 'error':
+        return 'border-red-400 bg-red-900 bg-opacity-20';
+      case 'warning':
+        return 'border-yellow-400 bg-yellow-900 bg-opacity-20';
+      case 'info':
+      default:
+        return 'border-blue-400 bg-blue-900 bg-opacity-20';
+    }
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    const colors = {
+      low: 'bg-gray-600 text-gray-300',
+      medium: 'bg-blue-600 text-blue-300',
+      high: 'bg-yellow-600 text-yellow-300',
+      critical: 'bg-red-600 text-red-300'
+    };
+    return colors[priority as keyof typeof colors] || colors.low;
+  };
+
+  return (
+    <div className="p-6 bg-gray-900 text-white min-h-screen">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <Bell className="w-8 h-8 text-blue-400" />
+            <div>
+              <h1 className="text-3xl font-bold">Notifications</h1>
+              <p className="text-gray-400">Stay updated with your trading activity</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={testNotification}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+            >
+              Test Notification
+            </button>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">Total</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
+              </div>
+              <Bell className="w-6 h-6 text-blue-400" />
+            </div>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">Unread</p>
+                <p className="text-2xl font-bold text-yellow-400">{stats.unread}</p>
+              </div>
+              <BellOff className="w-6 h-6 text-yellow-400" />
+            </div>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">Critical</p>
+                <p className="text-2xl font-bold text-red-400">{stats.critical}</p>
+              </div>
+              <AlertTriangle className="w-6 h-6 text-red-400" />
+            </div>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-sm">Success Rate</p>
+                <p className="text-2xl font-bold text-green-400">
+                  {stats.total > 0 ? Math.round((stats.byType.success / stats.total) * 100) : 0}%
+                </p>
+              </div>
+              <CheckCircle className="w-6 h-6 text-green-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="mb-6 bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h3 className="text-lg font-semibold mb-4">Notification Settings</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* General Settings */}
+            <div>
+              <h4 className="font-medium mb-3">General</h4>
+              <div className="space-y-3">
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={settings.enableSound}
+                    onChange={(e) => setSettings(prev => ({ ...prev, enableSound: e.target.checked }))}
+                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                  />
+                  {settings.enableSound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  <span>Sound notifications</span>
+                </label>
+
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={settings.enableDesktop}
+                    onChange={(e) => setSettings(prev => ({ ...prev, enableDesktop: e.target.checked }))}
+                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                  />
+                  <Bell className="w-4 h-4" />
+                  <span>Desktop notifications</span>
+                  {notificationPermission === 'denied' && (
+                    <span className="text-red-400 text-xs">(Permission denied)</span>
+                  )}
+                </label>
+              </div>
+            </div>
+
+            {/* Categories */}
+            <div>
+              <h4 className="font-medium mb-3">Categories</h4>
+              <div className="space-y-3">
+                {Object.entries(settings.categories).map(([category, enabled]) => (
+                  <label key={category} className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        categories: { ...prev.categories, [category]: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="capitalize">{category.replace('_', ' ')}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters and Actions */}
+      <div className="mb-6 bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <select
+                value={filter.category}
+                onChange={(e) => setFilter(prev => ({ ...prev, category: e.target.value }))}
+                className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Categories</option>
+                <option value="trade">Trade</option>
+                <option value="system">System</option>
+                <option value="price_alert">Price Alert</option>
+                <option value="strategy">Strategy</option>
+                <option value="security">Security</option>
+              </select>
+            </div>
+
+            <select
+              value={filter.priority}
+              onChange={(e) => setFilter(prev => ({ ...prev, priority: e.target.value }))}
+              className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Priorities</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+
+            <select
+              value={filter.read}
+              onChange={(e) => setFilter(prev => ({ ...prev, read: e.target.value }))}
+              className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All</option>
+              <option value="unread">Unread</option>
+              <option value="read">Read</option>
+            </select>
+
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search notifications..."
+              className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={markAllAsRead}
+              disabled={stats.unread === 0}
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
+            >
+              Mark All Read
+            </button>
+            <button
+              onClick={clearAll}
+              disabled={notifications.length === 0}
+              className="px-3 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications List */}
+      <div className="space-y-3">
+        {filteredNotifications.length > 0 ? (
+          filteredNotifications.map(notification => (
+            <div
+              key={notification.id}
+              className={`p-4 rounded-lg border-l-4 ${getTypeColor(notification.type)} ${
+                !notification.read ? 'border-l-blue-500' : 'border-l-gray-600'
+              } transition-all hover:bg-opacity-30`}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-3">
+                  {getTypeIcon(notification.type)}
+
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h4 className={`font-semibold ${!notification.read ? 'text-white' : 'text-gray-300'}`}>
+                        {notification.title}
+                      </h4>
+                      <span className={`px-2 py-1 rounded text-xs ${getPriorityBadge(notification.priority)}`}>
+                        {notification.priority}
+                      </span>
+                      <span className="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs capitalize">
+                        {notification.category.replace('_', ' ')}
+                      </span>
+                      {!notification.read && (
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      )}
+                    </div>
+
+                    <p className="text-gray-300 text-sm mb-2">{notification.message}</p>
+
+                    <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <span>{new Date(notification.timestamp).toLocaleString()}</span>
+                      {notification.data && (
+                        <details className="cursor-pointer">
+                          <summary className="text-blue-400 hover:text-blue-300">Details</summary>
+                          <pre className="mt-2 p-2 bg-gray-800 rounded text-xs overflow-auto">
+                            {JSON.stringify(notification.data, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {!notification.read && (
+                    <button
+                      onClick={() => markAsRead(notification.id)}
+                      className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
+                      title="Mark as read"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => deleteNotification(notification.id)}
+                    className="p-1 text-gray-400 hover:text-red-400 transition-colors"
+                    title="Delete notification"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-12 text-gray-400">
+            <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>No notifications found</p>
+            <p className="text-sm mt-2">
+              {searchTerm || filter.category !== 'all' || filter.priority !== 'all' || filter.read !== 'all'
+                ? 'Try adjusting your filters'
+                : 'All notifications will appear here'
+              }
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default NotificationsComponent;

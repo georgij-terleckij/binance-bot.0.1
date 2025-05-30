@@ -1,50 +1,37 @@
-import React, { useEffect, useState } from 'react'
-import axios from 'axios'
-
-type LogEntry = {
-  symbol: string
-  type: 'BUY' | 'SELL'
-  price: string
-  timestamp: number
+interface Props {
+  logs: {
+    action: 'buy' | 'sell'
+    price: number
+    timestamp: string
+  }[]
 }
 
-export default function LogsTable() {
-  const [logs, setLogs] = useState<LogEntry[]>([])
-
-  useEffect(() => {
-    loadLogs()
-    const interval = setInterval(loadLogs, 5000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const loadLogs = async () => {
-    try {
-      const res = await axios.get('http://localhost:8000/api/logs?symbol=BTCUSDT')
-      setLogs(res.data.logs.reverse()) // последние сверху
-    } catch (err) {
-      console.error('Ошибка загрузки логов:', err)
-    }
-  }
-
+export default function LogsTable({ logs }: Props) {
   return (
-    <div className="p-4 max-w-3xl mx-auto">
-      <h2 className="text-xl font-bold mb-2">📜 История сигналов</h2>
-      <table className="w-full text-sm border text-center">
-        <thead className="bg-gray-200">
+    <div className="mt-4 text-sm">
+      <h3 className="font-bold text-white mb-2">Logs</h3>
+      <table className="w-full text-left border border-gray-700">
+        <thead className="bg-gray-700 text-xs uppercase">
           <tr>
-            <th className="py-1 px-2">#</th>
-            <th className="py-1 px-2">Тип</th>
-            <th className="py-1 px-2">Цена</th>
-            <th className="py-1 px-2">Время</th>
+            <th className="p-2">Time</th>
+            <th className="p-2">Price</th>
+            <th className="p-2">Action</th>
           </tr>
         </thead>
         <tbody>
-          {logs.map((log, i) => (
-            <tr key={i} className="border-t">
-              <td>{i + 1}</td>
-              <td className={log.type === 'BUY' ? 'text-green-600' : 'text-red-600'}>{log.type}</td>
-              <td>{log.price}</td>
-              <td>{new Date(log.timestamp).toLocaleTimeString()}</td>
+          {logs.map((log, idx) => (
+            <tr key={idx} className="border-t border-gray-800">
+              <td className="p-2 text-gray-400">
+                {new Date(log.timestamp).toLocaleString()}
+              </td>
+              <td className="p-2">${log.price.toFixed(2)}</td>
+              <td
+                className={`p-2 font-bold ${
+                  log.action === 'buy' ? 'text-green-400' : 'text-red-400'
+                }`}
+              >
+                {log.action.toUpperCase()}
+              </td>
             </tr>
           ))}
         </tbody>

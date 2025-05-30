@@ -1,0 +1,573 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Percent,
+  PieChart,
+  BarChart3,
+  RefreshCw,
+  Download,
+  Settings,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Eye,
+  EyeOff,
+  ArrowUpDown,
+  Target,
+  Shield
+} from 'lucide-react';
+
+interface Asset {
+  symbol: string;
+  name: string;
+  balance: string;
+  locked: string;
+  usdValue: number;
+  price: number;
+  change24h: number;
+  allocation: number;
+}
+
+interface Position {
+  id: string;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  size: string;
+  entryPrice: number;
+  currentPrice: number;
+  pnl: number;
+  pnlPercent: number;
+  margin: number;
+  leverage: number;
+  liquidationPrice?: number;
+  createdAt: string;
+  strategy: string;
+}
+
+interface PortfolioSummary {
+  totalValue: number;
+  totalPnL: number;
+  totalPnLPercent: number;
+  availableBalance: number;
+  marginUsed: number;
+  freeMargin: number;
+  marginLevel: number;
+}
+
+// Mock data
+const mockAssets: Asset[] = [
+  {
+    symbol: 'USDT',
+    name: 'Tether USD',
+    balance: '5247.83',
+    locked: '1200.50',
+    usdValue: 5247.83,
+    price: 1.00,
+    change24h: 0.01,
+    allocation: 42.5
+  },
+  {
+    symbol: 'BTC',
+    name: 'Bitcoin',
+    balance: '0.15234876',
+    locked: '0.02145678',
+    usdValue: 6587.45,
+    price: 43245.67,
+    change24h: 2.34,
+    allocation: 53.2
+  },
+  {
+    symbol: 'ETH',
+    name: 'Ethereum',
+    balance: '1.87654321',
+    locked: '0.25432109',
+    usdValue: 4815.23,
+    price: 2567.89,
+    change24h: -1.23,
+    allocation: 38.9
+  },
+  {
+    symbol: 'BNB',
+    name: 'Binance Coin',
+    balance: '12.45678901',
+    locked: '2.15432109',
+    usdValue: 3421.56,
+    price: 274.76,
+    change24h: 0.87,
+    allocation: 27.6
+  }
+];
+
+const mockPositions: Position[] = [
+  {
+    id: '1',
+    symbol: 'BTCUSDT',
+    side: 'LONG',
+    size: '0.025',
+    entryPrice: 42800.00,
+    currentPrice: 43245.67,
+    pnl: 111.42,
+    pnlPercent: 1.04,
+    margin: 1070.00,
+    leverage: 10,
+    liquidationPrice: 38520.00,
+    createdAt: '2025-05-29T10:30:00Z',
+    strategy: 'Grid Trading'
+  },
+  {
+    id: '2',
+    symbol: 'ETHUSDT',
+    side: 'SHORT',
+    size: '2.5',
+    entryPrice: 2580.00,
+    currentPrice: 2567.89,
+    pnl: 30.28,
+    pnlPercent: 0.47,
+    margin: 645.00,
+    leverage: 10,
+    liquidationPrice: 2838.00,
+    createdAt: '2025-05-29T09:15:00Z',
+    strategy: 'Scalping'
+  },
+  {
+    id: '3',
+    symbol: 'ADAUSDT',
+    side: 'LONG',
+    size: '5000',
+    entryPrice: 0.4580,
+    currentPrice: 0.4523,
+    pnl: -285.00,
+    pnlPercent: -1.24,
+    margin: 229.00,
+    leverage: 10,
+    liquidationPrice: 0.4122,
+    createdAt: '2025-05-29T08:45:00Z',
+    strategy: 'DCA'
+  }
+];
+
+const mockSummary: PortfolioSummary = {
+  totalValue: 19572.07,
+  totalPnL: 1234.56,
+  totalPnLPercent: 6.73,
+  availableBalance: 15628.45,
+  marginUsed: 1944.00,
+  freeMargin: 17628.07,
+  marginLevel: 906.7
+};
+
+const PortfolioManagementComponent = () => {
+  const [assets, setAssets] = useState<Asset[]>(mockAssets);
+  const [positions, setPositions] = useState<Position[]>(mockPositions);
+  const [summary, setSummary] = useState<PortfolioSummary>(mockSummary);
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'positions'>('overview');
+  const [showBalances, setShowBalances] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Calculated data
+  const totalAssetValue = useMemo(() => {
+    return assets.reduce((sum, asset) => sum + asset.usdValue, 0);
+  }, [assets]);
+
+  const totalPositionPnL = useMemo(() => {
+    return positions.reduce((sum, position) => sum + position.pnl, 0);
+  }, [positions]);
+
+  const riskMetrics = useMemo(() => {
+    const totalMargin = positions.reduce((sum, pos) => sum + pos.margin, 0);
+    const marginLevel = totalAssetValue > 0 ? (totalAssetValue / totalMargin) * 100 : 0;
+    const riskPercentage = (totalMargin / totalAssetValue) * 100;
+
+    return {
+      totalMargin,
+      marginLevel,
+      riskPercentage,
+      maxLeverage: Math.max(...positions.map(p => p.leverage), 0)
+    };
+  }, [positions, totalAssetValue]);
+
+  const refreshData = async () => {
+    setIsLoading(true);
+    try {
+      // В реальном приложении:
+      // const [assetsData, positionsData, summaryData] = await Promise.all([
+      //   apiService.getAssets(),
+      //   apiService.getPositions(),
+      //   apiService.getPortfolioSummary()
+      // ]);
+      setTimeout(() => setIsLoading(false), 1000);
+    } catch (error) {
+      console.error('Failed to refresh portfolio data:', error);
+      setIsLoading(false);
+    }
+  };
+
+  const closePosition = async (positionId: string) => {
+    if (window.confirm('Are you sure you want to close this position?')) {
+      try {
+        // В реальном приложении:
+        // await apiService.closePosition(positionId);
+        setPositions(prev => prev.filter(p => p.id !== positionId));
+        console.log(`Position ${positionId} closed`);
+      } catch (error) {
+        console.error('Failed to close position:', error);
+      }
+    }
+  };
+
+  const exportData = () => {
+    const csvContent = activeTab === 'assets'
+      ? 'Symbol,Name,Balance,Locked,USD Value,Price,24h Change,Allocation\n' +
+        assets.map(asset => `${asset.symbol},${asset.name},${asset.balance},${asset.locked},${asset.usdValue},${asset.price},${asset.change24h}%,${asset.allocation}%`).join('\n')
+      : 'Symbol,Side,Size,Entry Price,Current Price,PnL,PnL%,Margin,Leverage,Strategy\n' +
+        positions.map(pos => `${pos.symbol},${pos.side},${pos.size},${pos.entryPrice},${pos.currentPrice},${pos.pnl},${pos.pnlPercent}%,${pos.margin},${pos.leverage}x,${pos.strategy}`).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `portfolio_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const getRiskLevel = (marginLevel: number) => {
+    if (marginLevel > 300) return { level: 'Low', color: 'text-green-400', bg: 'bg-green-900' };
+    if (marginLevel > 150) return { level: 'Medium', color: 'text-yellow-400', bg: 'bg-yellow-900' };
+    return { level: 'High', color: 'text-red-400', bg: 'bg-red-900' };
+  };
+
+  const formatCurrency = (value: number, showSymbol = true) => {
+    if (!showBalances) return '***.**';
+    return `${showSymbol ? '$' : ''}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const formatCrypto = (value: string, symbol: string) => {
+    if (!showBalances) return '*.******';
+    return `${parseFloat(value).toFixed(symbol === 'BTC' ? 8 : 6)} ${symbol}`;
+  };
+
+  const risk = getRiskLevel(riskMetrics.marginLevel);
+
+  return (
+    <div className="p-6 bg-gray-900 text-white min-h-screen">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Portfolio Management</h1>
+            <p className="text-gray-400">Monitor and manage your trading portfolio</p>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowBalances(!showBalances)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            >
+              {showBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              <span>{showBalances ? 'Hide' : 'Show'} Balances</span>
+            </button>
+
+            <button
+              onClick={refreshData}
+              disabled={isLoading}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+
+            <button
+              onClick={exportData}
+              className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Portfolio Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-gray-400 text-sm">Total Portfolio Value</h3>
+              <Wallet className="w-5 h-5 text-blue-400" />
+            </div>
+            <p className="text-2xl font-bold text-white">
+              {formatCurrency(summary.totalValue)}
+            </p>
+            <p className={`text-sm mt-1 ${summary.totalPnLPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {summary.totalPnLPercent >= 0 ? '+' : ''}{summary.totalPnLPercent.toFixed(2)}% ({summary.totalPnL >= 0 ? '+' : ''}${summary.totalPnL.toFixed(2)})
+            </p>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-gray-400 text-sm">Available Balance</h3>
+              <DollarSign className="w-5 h-5 text-green-400" />
+            </div>
+            <p className="text-2xl font-bold text-white">
+              {formatCurrency(summary.availableBalance)}
+            </p>
+            <p className="text-sm text-gray-400 mt-1">
+              Free margin: {formatCurrency(summary.freeMargin, false)}
+            </p>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-gray-400 text-sm">Margin Used</h3>
+              <Target className="w-5 h-5 text-yellow-400" />
+            </div>
+            <p className="text-2xl font-bold text-white">
+              {formatCurrency(summary.marginUsed)}
+            </p>
+            <p className="text-sm text-gray-400 mt-1">
+              {((summary.marginUsed / summary.totalValue) * 100).toFixed(1)}% of portfolio
+            </p>
+          </div>
+
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-gray-400 text-sm">Risk Level</h3>
+              <Shield className="w-5 h-5 text-gray-400" />
+            </div>
+            <p className={`text-2xl font-bold ${risk.color}`}>
+              {risk.level}
+            </p>
+            <p className="text-sm text-gray-400 mt-1">
+              Margin level: {riskMetrics.marginLevel.toFixed(0)}%
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="mb-6 border-b border-gray-700">
+        <nav className="flex space-x-8">
+          {[
+            { id: 'overview', label: 'Overview', icon: BarChart3 },
+            { id: 'assets', label: 'Assets', icon: Wallet, count: assets.length },
+            { id: 'positions', label: 'Positions', icon: ArrowUpDown, count: positions.length }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === tab.id
+                  ? 'border-blue-500 text-blue-500'
+                  : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+              {tab.count !== undefined && (
+                <span className="bg-gray-700 text-gray-300 px-2 py-1 rounded-full text-xs">
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Content */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Asset Allocation */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h3 className="text-lg font-semibold mb-4">Asset Allocation</h3>
+            <div className="space-y-4">
+              {assets.map(asset => (
+                <div key={asset.symbol} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
+                      {asset.symbol[0]}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{asset.symbol}</p>
+                      <p className="text-sm text-gray-400">{formatCurrency(asset.usdValue)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{asset.allocation.toFixed(1)}%</p>
+                    <p className={`text-sm ${asset.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {asset.change24h >= 0 ? '+' : ''}{asset.change24h.toFixed(2)}%
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Risk Metrics */}
+          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <h3 className="text-lg font-semibold mb-4">Risk Analysis</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
+                <span className="text-gray-300">Margin Level</span>
+                <span className={`font-semibold ${risk.color}`}>
+                  {riskMetrics.marginLevel.toFixed(0)}%
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
+                <span className="text-gray-300">Portfolio Risk</span>
+                <span className="font-semibold text-yellow-400">
+                  {riskMetrics.riskPercentage.toFixed(1)}%
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
+                <span className="text-gray-300">Max Leverage</span>
+                <span className="font-semibold text-blue-400">
+                  {riskMetrics.maxLeverage}x
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center p-3 bg-gray-700 rounded-lg">
+                <span className="text-gray-300">Total P&L</span>
+                <span className={`font-semibold ${totalPositionPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {totalPositionPnL >= 0 ? '+' : ''}${totalPositionPnL.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'assets' && (
+        <div className="bg-gray-800 rounded-lg border border-gray-700">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-4 px-6">Asset</th>
+                  <th className="text-left py-4 px-6">Balance</th>
+                  <th className="text-left py-4 px-6">Locked</th>
+                  <th className="text-left py-4 px-6">USD Value</th>
+                  <th className="text-left py-4 px-6">Price</th>
+                  <th className="text-left py-4 px-6">24h Change</th>
+                  <th className="text-left py-4 px-6">Allocation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assets.map(asset => (
+                  <tr key={asset.symbol} className="border-b border-gray-700 hover:bg-gray-700">
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-sm font-bold">
+                          {asset.symbol[0]}
+                        </div>
+                        <div>
+                          <p className="font-semibold">{asset.symbol}</p>
+                          <p className="text-sm text-gray-400">{asset.name}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 font-mono">
+                      {formatCrypto(asset.balance, asset.symbol)}
+                    </td>
+                    <td className="py-4 px-6 font-mono text-yellow-400">
+                      {formatCrypto(asset.locked, asset.symbol)}
+                    </td>
+                    <td className="py-4 px-6 font-mono font-semibold">
+                      {formatCurrency(asset.usdValue)}
+                    </td>
+                    <td className="py-4 px-6 font-mono">
+                      ${asset.price.toFixed(asset.symbol === 'USDT' ? 4 : 2)}
+                    </td>
+                    <td className={`py-4 px-6 ${asset.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {asset.change24h >= 0 ? '+' : ''}{asset.change24h.toFixed(2)}%
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-16 bg-gray-600 rounded-full h-2">
+                          <div
+                            className="bg-blue-500 h-2 rounded-full"
+                            style={{ width: `${Math.min(asset.allocation, 100)}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm">{asset.allocation.toFixed(1)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'positions' && (
+        <div className="bg-gray-800 rounded-lg border border-gray-700">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-4 px-6">Symbol</th>
+                  <th className="text-left py-4 px-6">Side</th>
+                  <th className="text-left py-4 px-6">Size</th>
+                  <th className="text-left py-4 px-6">Entry Price</th>
+                  <th className="text-left py-4 px-6">Current Price</th>
+                  <th className="text-left py-4 px-6">P&L</th>
+                  <th className="text-left py-4 px-6">Margin</th>
+                  <th className="text-left py-4 px-6">Leverage</th>
+                  <th className="text-left py-4 px-6">Strategy</th>
+                  <th className="text-left py-4 px-6">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {positions.map(position => (
+                  <tr key={position.id} className="border-b border-gray-700 hover:bg-gray-700">
+                    <td className="py-4 px-6 font-semibold">{position.symbol}</td>
+                    <td className={`py-4 px-6 ${position.side === 'LONG' ? 'text-green-400' : 'text-red-400'}`}>
+                      {position.side}
+                    </td>
+                    <td className="py-4 px-6 font-mono">{position.size}</td>
+                    <td className="py-4 px-6 font-mono">${position.entryPrice.toFixed(2)}</td>
+                    <td className="py-4 px-6 font-mono">${position.currentPrice.toFixed(2)}</td>
+                    <td className={`py-4 px-6 font-mono ${position.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {position.pnl >= 0 ? '+' : ''}${position.pnl.toFixed(2)}
+                      <span className="text-sm ml-1">
+                        ({position.pnlPercent >= 0 ? '+' : ''}{position.pnlPercent.toFixed(2)}%)
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 font-mono">${position.margin.toFixed(2)}</td>
+                    <td className="py-4 px-6">
+                      <span className="px-2 py-1 bg-blue-900 text-blue-300 rounded text-sm">
+                        {position.leverage}x
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-sm text-gray-400">{position.strategy}</td>
+                    <td className="py-4 px-6">
+                      <button
+                        onClick={() => closePosition(position.id)}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors"
+                      >
+                        Close
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {positions.length === 0 && (
+              <div className="text-center py-12 text-gray-400">
+                <ArrowUpDown className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No open positions</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PortfolioManagementComponent;

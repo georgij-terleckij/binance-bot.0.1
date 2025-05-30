@@ -10,6 +10,8 @@ from api.routes import grid_trade
 from api.routes import grid_trade_settings
 from api.routes import candles
 from api.routes import monitoring
+from api.routes import logs
+from api.routes import archive
 
 app = FastAPI()
 
@@ -28,7 +30,8 @@ app.include_router(grid_trade.router, prefix="/api")
 app.include_router(grid_trade_settings.router, prefix="/api")
 app.include_router(candles.router, prefix="/api")
 app.include_router(monitoring.router, prefix="/api")
-
+app.include_router(logs.router, prefix="/api")
+app.include_router(archive.router, prefix="/api")
 
 
 @app.get("/")

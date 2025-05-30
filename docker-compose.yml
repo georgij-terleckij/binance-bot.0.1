@@ -26,3 +26,15 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
+
+  websocket-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.ws_server
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+    restart: unless-stopped

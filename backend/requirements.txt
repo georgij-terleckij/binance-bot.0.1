@@ -7,3 +7,23 @@ httpx
 python-binance
 redis
 websockets==12.0
+
+
+
+# FastAPI и WebSocket зависимости
+#fastapi==0.104.1
+#uvicorn[standard]==0.24.0
+#websockets==12.0
+
+# Redis
+#redis==5.0.1
+
+# Дополнительные зависимости (если их еще нет)
+#python-multipart==0.0.6
+#pydantic==2.5.0
+
+# Если у вас есть другие зависимости, добавьте их сюда
+# requests==2.31.0
+# aiohttp==3.9.0
+# pandas==2.1.0
+# numpy==1.24.0

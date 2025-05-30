@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Query
 from redis import Redis
+import json
 
 router = APIRouter()
 redis = Redis(host="redis", port=6379, decode_responses=True)
@@ -9,17 +10,21 @@ MONITORING_KEY = "monitoring-symbols"
 @router.get("/monitoring")
 def get_monitored_symbols():
     data = redis.get(MONITORING_KEY)
-    return {"symbols": [] if data is None else eval(data)}
+    return {"symbols": json.loads(data) if data else []}
 
 @router.post("/monitoring")
-def update_monitored_symbols(symbol: str, active: bool):
+def update_monitored_symbols(
+    symbol: str = Query(...),
+    active: bool = Query(...)
+):
     data = redis.get(MONITORING_KEY)
-    current = set(eval(data)) if data else set()
+    current = set(json.loads(data)) if data else set()
 
+    symbol = symbol.upper()
     if active:
-        current.add(symbol.upper())
+        current.add(symbol)
     else:
-        current.discard(symbol.upper())
+        current.discard(symbol)
 
-    redis.set(MONITORING_KEY, str(list(current)))
+    redis.set(MONITORING_KEY, json.dumps(list(current)))
     return {"success": True, "symbols": list(current)}
